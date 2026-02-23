@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BreathLog</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg:        #0f1117;
+  --surface:   #181c26;
+  --surface2:  #1f2436;
+  --border:    #2a3045;
+  --border2:   #333d58;
+  --accent:    #4fc8b0;
+  --accent-dim:#1d4d44;
+  --text:      #e8ecf2;
+  --muted:     #5a6580;
+  --muted2:    #8494b0;
+  --d0:        #4fc8b0;
+  --d1:        #f0c040;
+  --d2:        #f09040;
+  --d3:        #e84f4f;
+  --radius:    12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 4rem;
+}
+
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.header-inner {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 0.5rem; }
+.logo-icon { font-size: 1.25rem; line-height: 1; }
+.logo-text {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.status-pill {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  border-radius: 99px;
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+  background: var(--surface2);
+  transition: all 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 170px;
+  text-overflow: ellipsis;
+}
+.status-pill.ready { border-color: var(--accent); color: var(--accent); }
+.status-pill.error { border-color: var(--d3); color: var(--d3); }
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.1rem;
+}
+
+.field { margin-bottom: 1.15rem; }
+.field:last-child { margin-bottom: 0; }
+
+.field-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted2);
+  margin-bottom: 0.55rem;
+}
+
+textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  resize: vertical;
+  transition: border-color 0.2s;
+  line-height: 1.5;
+}
+textarea:focus { outline: none; border-color: var(--accent); }
+textarea::placeholder { color: var(--muted); }
+
+/* DYSPNEA */
+.dyspnea-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+.dyspnea-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.7rem 0.3rem;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, transform 0.1s;
+  user-select: none;
+}
+.dyspnea-btn input { display: none; }
+.dyspnea-btn:active { transform: scale(0.96); }
+.db-num {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--muted2);
+  transition: color 0.18s;
+}
+.db-word {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 0.18s;
+}
+
+.dyspnea-btn[data-level="0"]:has(input:checked) { border-color: var(--d0); background: rgba(79,200,176,0.1); }
+.dyspnea-btn[data-level="0"]:has(input:checked) .db-num,
+.dyspnea-btn[data-level="0"]:has(input:checked) .db-word { color: var(--d0); }
+
+.dyspnea-btn[data-level="1"]:has(input:checked) { border-color: var(--d1); background: rgba(240,192,64,0.1); }
+.dyspnea-btn[data-level="1"]:has(input:checked) .db-num,
+.dyspnea-btn[data-level="1"]:has(input:checked) .db-word { color: var(--d1); }
+
+.dyspnea-btn[data-level="2"]:has(input:checked) { border-color: var(--d2); background: rgba(240,144,64,0.1); }
+.dyspnea-btn[data-level="2"]:has(input:checked) .db-num,
+.dyspnea-btn[data-level="2"]:has(input:checked) .db-word { color: var(--d2); }
+
+.dyspnea-btn[data-level="3"]:has(input:checked) { border-color: var(--d3); background: rgba(232,79,79,0.1); }
+.dyspnea-btn[data-level="3"]:has(input:checked) .db-num,
+.dyspnea-btn[data-level="3"]:has(input:checked) .db-word { color: var(--d3); }
+
+/* CONDITION TOGGLES */
+.toggle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.toggle-item { cursor: pointer; user-select: none; }
+.toggle-item input { display: none; }
+.toggle-face {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  transition: border-color 0.18s, background 0.18s;
+}
+.toggle-item:has(input:checked) .toggle-face {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.ti-icon { font-size: 1rem; line-height: 1; flex-shrink: 0; }
+.ti-text {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted2);
+  transition: color 0.18s;
+}
+.toggle-item:has(input:checked) .ti-text { color: var(--accent); }
+
+.weather-pill { display: inline-block; margin-bottom: 1rem; max-width: 100%; }
+
+.btn-primary {
+  width: 100%;
+  padding: 0.85rem;
+  background: var(--accent);
+  color: #0a1a18;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.btn-primary:hover   { opacity: 0.88; }
+.btn-primary:active  { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.spinner {
+  width: 17px; height: 17px;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: #0a1a18;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.banner {
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+}
+.banner.success { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+.banner.error   { background: rgba(232,79,79,0.1); color: var(--d3); border: 1px solid var(--d3); }
+.banner.hidden  { display: none; }
+
+#entries-list { display: flex; flex-direction: column; gap: 0.65rem; }
+
+.entry-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 0.9rem;
+  animation: fadeUp 0.3s ease;
+}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+.entry-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.entry-date { font-size: 0.75rem; color: var(--muted); }
+.entry-dyspnea {
+  font-size: 0.72rem; font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+}
+.d0 { background: rgba(79,200,176,0.12);  color: var(--d0); }
+.d1 { background: rgba(240,192,64,0.12);  color: var(--d1); }
+.d2 { background: rgba(240,144,64,0.12);  color: var(--d2); }
+.d3 { background: rgba(232,79,79,0.12);   color: var(--d3); }
+
+.entry-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.45rem; }
+.tag {
+  font-size: 0.72rem; padding: 0.12rem 0.45rem;
+  border-radius: 99px;
+  background: var(--surface); border: 1px solid var(--border2); color: var(--muted2);
+}
+.entry-meta { font-size: 0.75rem; color: var(--muted); line-height: 1.6; }
+.entry-notes {
+  font-size: 0.82rem; color: var(--muted2);
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem; padding-top: 0.5rem; line-height: 1.5;
+}
+
+.muted { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 0.75rem 0; }
+.hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🫁</span>
+      <span class="logo-text">BreathLog</span>
+    </div>
+    <div id="location-status" class="status-pill">📍 locating…</div>
+  </div>
+</header>
+
+<main>
+
+  <div id="status-banner" class="banner hidden"></div>
+
+  <section class="card">
+    <form id="log-form" novalidate>
+
+      <!-- DYSPNEA -->
+      <div class="field">
+        <label class="field-label">Dyspnea</label>
+        <div class="dyspnea-row">
+          <label class="dyspnea-btn" data-level="0">
+            <input type="radio" name="dyspnea" value="0" checked />
+            <span class="db-num">0</span>
+            <span class="db-word">None</span>
+          </label>
+          <label class="dyspnea-btn" data-level="1">
+            <input type="radio" name="dyspnea" value="1" />
+            <span class="db-num">1</span>
+            <span class="db-word">Mild</span>
+          </label>
+          <label class="dyspnea-btn" data-level="2">
+            <input type="radio" name="dyspnea" value="2" />
+            <span class="db-num">2</span>
+            <span class="db-word">Moderate</span>
+          </label>
+          <label class="dyspnea-btn" data-level="3">
+            <input type="radio" name="dyspnea" value="3" />
+            <span class="db-num">3</span>
+            <span class="db-word">Severe</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CONDITIONS -->
+      <div class="field">
+        <label class="field-label">Conditions</label>
+        <div class="toggle-grid">
+          <label class="toggle-item">
+            <input type="checkbox" id="at_home" name="at_home" checked />
+            <span class="toggle-face"><span class="ti-icon">🏠</span><span class="ti-text">At home</span></span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="outside" name="outside" />
+            <span class="toggle-face"><span class="ti-icon">🌤</span><span class="ti-text">Outside</span></span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="working_out_or_active" name="working_out_or_active" />
+            <span class="toggle-face"><span class="ti-icon">🏃</span><span class="ti-text">Active</span></span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="wearing_mask" name="wearing_mask" />
+            <span class="toggle-face"><span class="ti-icon">😷</span><span class="ti-text">Mask on</span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- OTHER SYMPTOMS -->
+      <div class="field">
+        <label for="other_symptoms" class="field-label">Other Symptoms</label>
+        <textarea id="other_symptoms" name="other_symptoms" rows="2"
+          placeholder="chest tightness, coughing…"></textarea>
+      </div>
+
+      <!-- NOTES -->
+      <div class="field">
+        <label for="notes" class="field-label">Notes</label>
+        <textarea id="notes" name="notes" rows="3"
+          placeholder="Anything else to remember…"></textarea>
+      </div>
+
+      <div id="weather-status" class="status-pill weather-pill">🌡 fetching weather…</div>
+
+      <button type="submit" id="submit-btn" class="btn-primary">
+        <span id="btn-text">Log Entry</span>
+        <span id="btn-spinner" class="spinner hidden"></span>
+      </button>
+
+    </form>
+  </section>
+
+  <section class="card">
+    <p class="field-label" style="margin-bottom:1rem">Recent Entries</p>
+    <div id="entries-list">
+      <p class="muted">Loading…</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  ⚙️  CONFIGURATION — paste your keys here
+// ════════════════════════════════════════════════════════════
+
+const SUPABASE_URL             = 'https://yehzylnzhoffmgshnjyi.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_PHKO6h45-jyy3n8ly9L7hQ_vsnxiivH';
+const WEATHER_API_KEY          = 'ebdedd454bb01e6c6e80e935cc186ce4';
+
+// ════════════════════════════════════════════════════════════
+//  SUPABASE CLIENT
+// ════════════════════════════════════════════════════════════
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+
+let autoData = {
+  latitude: null, longitude: null,
+  city: null, state: null,
+  temperature: null, humidity: null, raining: false,
+};
+
+// ════════════════════════════════════════════════════════════
+//  DOM REFS
+// ════════════════════════════════════════════════════════════
+
+const form           = document.getElementById('log-form');
+const submitBtn      = document.getElementById('submit-btn');
+const btnText        = document.getElementById('btn-text');
+const btnSpinner     = document.getElementById('btn-spinner');
+const statusBanner   = document.getElementById('status-banner');
+const locationStatus = document.getElementById('location-status');
+const weatherStatus  = document.getElementById('weather-status');
+const entriesList    = document.getElementById('entries-list');
+
+// ════════════════════════════════════════════════════════════
+//  DYSPNEA
+// ════════════════════════════════════════════════════════════
+
+function getDyspneaValue() {
+  const checked = document.querySelector('input[name="dyspnea"]:checked');
+  return checked ? parseInt(checked.value, 10) : 0;
+}
+
+// ════════════════════════════════════════════════════════════
+//  LOCATION + WEATHER
+// ════════════════════════════════════════════════════════════
+
+function setLocationChip(text, state) {
+  locationStatus.textContent = text;
+  locationStatus.className = 'status-pill ' + (state || '');
+}
+function setWeatherChip(text, state) {
+  weatherStatus.textContent = text;
+  weatherStatus.className = 'status-pill weather-pill ' + (state || '');
+}
+
+async function fetchWeather(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${WEATHER_API_KEY}`
+    );
+    if (!res.ok) throw new Error(`Weather API ${res.status}`);
+    const data = await res.json();
+    autoData.city        = data.name || null;
+    autoData.state       = data.sys?.country || null;
+    autoData.temperature = data.main?.temp ?? null;
+    autoData.humidity    = data.main?.humidity ?? null;
+    autoData.raining     = (data.weather || []).some(w =>
+      w.main?.toLowerCase().includes('rain') || w.description?.toLowerCase().includes('rain')
+    );
+    await fetchStateFromGeo(lat, lon);
+    const tempStr = autoData.temperature !== null ? `${Math.round(autoData.temperature)}°F` : '—';
+    const humStr  = autoData.humidity    !== null ? `${autoData.humidity}%` : '—';
+    setWeatherChip(`🌡 ${tempStr} · 💧 ${humStr}${autoData.raining ? ' 🌧' : ''}`, 'ready');
+  } catch (err) {
+    setWeatherChip('🌡 Weather unavailable', 'error');
+  }
+}
+
+async function fetchStateFromGeo(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${WEATHER_API_KEY}`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data[0]) {
+      autoData.city  = data[0].name  || autoData.city;
+      autoData.state = data[0].state || data[0].country || autoData.state;
+    }
+  } catch (_) {}
+}
+
+function initLocation() {
+  if (!navigator.geolocation) {
+    setLocationChip('📍 GPS not supported', 'error');
+    setWeatherChip('🌡 Weather unavailable', 'error');
+    return;
+  }
+  setLocationChip('📍 locating…');
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      autoData.latitude  = pos.coords.latitude;
+      autoData.longitude = pos.coords.longitude;
+      setLocationChip(`📍 ${autoData.latitude.toFixed(3)}, ${autoData.longitude.toFixed(3)}`, 'ready');
+      await fetchWeather(autoData.latitude, autoData.longitude);
+      if (autoData.city) {
+        const loc = autoData.state ? `${autoData.city}, ${autoData.state}` : autoData.city;
+        setLocationChip(`📍 ${loc}`, 'ready');
+      }
+    },
+    () => {
+      setLocationChip('📍 Location denied', 'error');
+      setWeatherChip('🌡 Weather unavailable', 'error');
+    },
+    { timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  FORM SUBMIT
+// ════════════════════════════════════════════════════════════
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideBanner();
+  setSubmitting(true);
+  const entry = {
+    dyspnea:               getDyspneaValue(),
+    at_home:               document.getElementById('at_home').checked,
+    outside:               document.getElementById('outside').checked,
+    working_out_or_active: document.getElementById('working_out_or_active').checked,
+    wearing_mask:          document.getElementById('wearing_mask').checked,
+    other_symptoms:        document.getElementById('other_symptoms').value.trim() || null,
+    notes:                 document.getElementById('notes').value.trim() || null,
+    latitude:    autoData.latitude,
+    longitude:   autoData.longitude,
+    city:        autoData.city,
+    state:       autoData.state,
+    temperature: autoData.temperature,
+    humidity:    autoData.humidity,
+    raining:     autoData.raining,
+  };
+  try {
+    const { error } = await db.from('entries').insert([entry]);
+    if (error) throw error;
+    showBanner('✓ Entry logged!', 'success');
+    form.reset();
+    document.getElementById('at_home').checked = true;
+    loadEntries();
+  } catch (err) {
+    showBanner(`✗ ${err.message}`, 'error');
+  } finally {
+    setSubmitting(false);
+  }
+});
+
+function setSubmitting(loading) {
+  submitBtn.disabled = loading;
+  btnText.textContent = loading ? 'Saving…' : 'Log Entry';
+  btnSpinner.classList.toggle('hidden', !loading);
+}
+
+// ════════════════════════════════════════════════════════════
+//  BANNER
+// ════════════════════════════════════════════════════════════
+
+function showBanner(message, type) {
+  statusBanner.textContent = message;
+  statusBanner.className = `banner ${type}`;
+  statusBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (type === 'success') setTimeout(hideBanner, 4000);
+}
+function hideBanner() { statusBanner.className = 'banner hidden'; }
+
+// ════════════════════════════════════════════════════════════
+//  ENTRIES
+// ════════════════════════════════════════════════════════════
+
+async function loadEntries() {
+  entriesList.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const { data, error } = await db
+      .from('entries').select('*')
+      .order('created_at', { ascending: false }).limit(20);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      entriesList.innerHTML = '<p class="muted">No entries yet.</p>';
+      return;
+    }
+    entriesList.innerHTML = data.map(renderEntry).join('');
+  } catch (err) {
+    entriesList.innerHTML = `<p class="muted" style="color:var(--d3)">Could not load: ${err.message}</p>`;
+  }
+}
+
+function renderEntry(e) {
+  const date    = new Date(e.created_at);
+  const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const labels  = ['None','Mild','Moderate','Severe'];
+  const dyspneaHtml = `<span class="entry-dyspnea d${e.dyspnea}">${e.dyspnea} · ${labels[e.dyspnea]}</span>`;
+  const tags = [];
+  if (e.at_home)               tags.push('🏠 Home');
+  if (e.outside)               tags.push('🌤 Outside');
+  if (e.working_out_or_active) tags.push('🏃 Active');
+  if (e.wearing_mask)          tags.push('😷 Mask');
+  if (e.raining)               tags.push('🌧 Rain');
+  const tagsHtml = tags.length
+    ? `<div class="entry-tags">${tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>` : '';
+  const metaParts = [];
+  if (e.city || e.state) metaParts.push(`📍 ${[e.city,e.state].filter(Boolean).join(', ')}`);
+  if (e.temperature != null) metaParts.push(`${Math.round(e.temperature)}°F`);
+  if (e.humidity    != null) metaParts.push(`${e.humidity}% hum`);
+  const metaHtml = metaParts.length ? `<div class="entry-meta">${metaParts.join(' · ')}</div>` : '';
+  const noteParts = [];
+  if (e.other_symptoms) noteParts.push(`<strong>Symptoms:</strong> ${esc(e.other_symptoms)}`);
+  if (e.notes)          noteParts.push(`<strong>Notes:</strong> ${esc(e.notes)}`);
+  const notesHtml = noteParts.length ? `<div class="entry-notes">${noteParts.join('<br>')}</div>` : '';
+  return `<div class="entry-item">
+    <div class="entry-top"><span class="entry-date">${dateStr} · ${timeStr}</span>${dyspneaHtml}</div>
+    ${tagsHtml}${metaHtml}${notesHtml}
+  </div>`;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+
+initLocation();
+loadEntries();
+</script>
+</body>
+</html>
