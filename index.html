@@ -428,6 +428,7 @@ let autoData = {
   latitude: null, longitude: null,
   city: null, state: null,
   temperature: null, humidity: null, raining: false,
+  aqi: null,
 };
 
 // ════════════════════════════════════════════════════════════
@@ -480,12 +481,34 @@ async function fetchWeather(lat, lon) {
       w.main?.toLowerCase().includes('rain') || w.description?.toLowerCase().includes('rain')
     );
     await fetchStateFromGeo(lat, lon);
-    const tempStr = autoData.temperature !== null ? `${Math.round(autoData.temperature)}°F` : '—';
-    const humStr  = autoData.humidity    !== null ? `${autoData.humidity}%` : '—';
-    setWeatherChip(`🌡 ${tempStr} · 💧 ${humStr}${autoData.raining ? ' 🌧' : ''}`, 'ready');
+    updateWeatherChip();
   } catch (err) {
     setWeatherChip('🌡 Weather unavailable', 'error');
   }
+}
+
+async function fetchAirQuality(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}`
+    );
+    if (!res.ok) throw new Error(`Air Quality API ${res.status}`);
+    const data = await res.json();
+    autoData.aqi = data.list?.[0]?.main?.aqi ?? null;
+    updateWeatherChip();
+  } catch (err) {
+    console.error('Air quality fetch error:', err);
+  }
+}
+
+const AQI_LABELS = ['', 'Good', 'Fair', 'Moderate', 'Poor', 'Very Poor'];
+
+function updateWeatherChip() {
+  const tempStr = autoData.temperature !== null ? `${Math.round(autoData.temperature)}°F` : '—';
+  const humStr  = autoData.humidity    !== null ? `${autoData.humidity}%` : '—';
+  const rainStr = autoData.raining ? ' 🌧' : '';
+  const aqiStr  = autoData.aqi !== null ? ` · AQI ${autoData.aqi} ${AQI_LABELS[autoData.aqi]}` : '';
+  setWeatherChip(`🌡 ${tempStr} · 💧 ${humStr}${rainStr}${aqiStr}`, 'ready');
 }
 
 async function fetchStateFromGeo(lat, lon) {
@@ -514,7 +537,10 @@ function initLocation() {
       autoData.latitude  = pos.coords.latitude;
       autoData.longitude = pos.coords.longitude;
       setLocationChip(`📍 ${autoData.latitude.toFixed(3)}, ${autoData.longitude.toFixed(3)}`, 'ready');
-      await fetchWeather(autoData.latitude, autoData.longitude);
+      await Promise.all([
+        fetchWeather(autoData.latitude, autoData.longitude),
+        fetchAirQuality(autoData.latitude, autoData.longitude),
+      ]);
       if (autoData.city) {
         const loc = autoData.state ? `${autoData.city}, ${autoData.state}` : autoData.city;
         setLocationChip(`📍 ${loc}`, 'ready');
@@ -551,6 +577,7 @@ form.addEventListener('submit', async (e) => {
     temperature: autoData.temperature,
     humidity:    autoData.humidity,
     raining:     autoData.raining,
+    aqi:         autoData.aqi,
   };
   try {
     const { error } = await db.from('entries').insert([entry]);
@@ -623,6 +650,7 @@ function renderEntry(e) {
   if (e.city || e.state) metaParts.push(`📍 ${[e.city,e.state].filter(Boolean).join(', ')}`);
   if (e.temperature != null) metaParts.push(`${Math.round(e.temperature)}°F`);
   if (e.humidity    != null) metaParts.push(`${e.humidity}% hum`);
+  if (e.aqi         != null) metaParts.push(`AQI ${e.aqi} ${['','Good','Fair','Moderate','Poor','Very Poor'][e.aqi]}`);
   const metaHtml = metaParts.length ? `<div class="entry-meta">${metaParts.join(' · ')}</div>` : '';
   const noteParts = [];
   if (e.other_symptoms) noteParts.push(`<strong>Symptoms:</strong> ${esc(e.other_symptoms)}`);
