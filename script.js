@@ -10,7 +10,6 @@
 const SUPABASE_URL         = 'https://yehzylnzhoffmgshnjyi.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_PHKO6h45-jyy3n8ly9L7hQ_vsnxiivH';
 const WEATHER_API_KEY      = 'ebdedd454bb01e6c6e80e935cc186ce4';
-const TOMORROW_IO_API_KEY  = 'v9Ip8JSqmP7hykbnvGntfwG9uo3PPheb';
 
 // ════════════════════════════════════════════════════════════
 //  SUPABASE CLIENT
@@ -30,11 +29,8 @@ let autoData = {
   state:       null,
   temperature: null,
   humidity:    null,
-  raining:      false,
-  aqi:          null,
-  pollen_tree:  null,
-  pollen_grass: null,
-  pollen_weed:  null,
+  raining:     false,
+  aqi:         null,
 };
 
 // ════════════════════════════════════════════════════════════
@@ -48,7 +44,6 @@ const btnSpinner      = document.getElementById('btn-spinner');
 const statusBanner    = document.getElementById('status-banner');
 const locationStatus  = document.getElementById('location-status');
 const weatherStatus   = document.getElementById('weather-status');
-const pollenStatus    = document.getElementById('pollen-status');
 const entriesList     = document.getElementById('entries-list');
 
 // ════════════════════════════════════════════════════════════
@@ -72,11 +67,6 @@ function setLocationChip(text, state) {
 function setWeatherChip(text, state) {
   weatherStatus.textContent = text;
   weatherStatus.className = 'status-pill weather-pill ' + (state || '');
-}
-
-function setPollenChip(text, state) {
-  pollenStatus.textContent = text;
-  pollenStatus.className = 'status-pill pollen-pill ' + (state || '');
 }
 
 async function fetchWeather(lat, lon) {
@@ -144,32 +134,10 @@ async function fetchStateFromGeo(lat, lon) {
   } catch (_) { /* silently ignore — we already have fallback from OWM */ }
 }
 
-async function fetchPollen(lat, lon) {
-  try {
-    const url = `https://api.tomorrow.io/v4/weather/realtime?location=${lat},${lon}&fields=treeIndex,grassIndex,weedIndex&apikey=${TOMORROW_IO_API_KEY}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Pollen API ${res.status}`);
-    const data = await res.json();
-    const v = data.data?.values;
-    autoData.pollen_tree  = v?.treeIndex  ?? null;
-    autoData.pollen_grass = v?.grassIndex ?? null;
-    autoData.pollen_weed  = v?.weedIndex  ?? null;
-    const parts = [];
-    if (autoData.pollen_tree  != null) parts.push(`🌲 ${autoData.pollen_tree}`);
-    if (autoData.pollen_grass != null) parts.push(`🌾 ${autoData.pollen_grass}`);
-    if (autoData.pollen_weed  != null) parts.push(`🌿 ${autoData.pollen_weed}`);
-    setPollenChip(parts.length ? `🤧 ${parts.join(' · ')}` : '🌿 No pollen data', 'ready');
-  } catch (err) {
-    console.error('Pollen fetch error:', err);
-    setPollenChip('🌿 Pollen unavailable', 'error');
-  }
-}
-
 function initLocation() {
   if (!navigator.geolocation) {
     setLocationChip('📍 GPS not supported', 'error');
     setWeatherChip('🌡 Weather unavailable', 'error');
-    setPollenChip('🌿 Pollen unavailable', 'error');
     return;
   }
 
@@ -182,7 +150,6 @@ function initLocation() {
       await Promise.all([
         fetchWeather(autoData.latitude, autoData.longitude),
         fetchAirQuality(autoData.latitude, autoData.longitude),
-        fetchPollen(autoData.latitude, autoData.longitude),
       ]);
       // Update location chip with city once we have it
       if (autoData.city) {
@@ -194,7 +161,6 @@ function initLocation() {
       console.error('Geolocation error:', err);
       setLocationChip('📍 Location denied', 'error');
       setWeatherChip('🌡 Weather unavailable', 'error');
-      setPollenChip('🌿 Pollen unavailable', 'error');
     },
     { timeout: 10000, maximumAge: 60000 }
   );
@@ -226,9 +192,6 @@ form.addEventListener('submit', async (e) => {
     humidity:              autoData.humidity,
     raining:               autoData.raining,
     aqi:                   autoData.aqi,
-    pollen_tree:           autoData.pollen_tree,
-    pollen_grass:          autoData.pollen_grass,
-    pollen_weed:           autoData.pollen_weed,
   };
 
   try {
@@ -325,11 +288,6 @@ function renderEntry(e) {
   if (e.temperature != null) metaParts.push(`${Math.round(e.temperature)}°F`);
   if (e.humidity    != null) metaParts.push(`${e.humidity}% humidity`);
   if (e.aqi         != null) metaParts.push(`AQI ${e.aqi} ${aqiLabels[e.aqi]}`);
-  const pollenParts = [];
-  if (e.pollen_tree  != null) pollenParts.push(`🌲 ${e.pollen_tree}`);
-  if (e.pollen_grass != null) pollenParts.push(`🌾 ${e.pollen_grass}`);
-  if (e.pollen_weed  != null) pollenParts.push(`🌿 ${e.pollen_weed}`);
-  if (pollenParts.length) metaParts.push(`🤧 ${pollenParts.join(' · ')}`);
   const metaHtml = metaParts.length
     ? `<div class="entry-meta">${metaParts.join(' · ')}</div>`
     : '';
