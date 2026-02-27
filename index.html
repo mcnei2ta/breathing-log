@@ -430,6 +430,7 @@ let autoData = {
   latitude: null, longitude: null,
   city: null, state: null,
   temperature: null, humidity: null, raining: false,
+  aqi: null,
   pollen_tree: null, pollen_grass: null, pollen_weed: null,
 };
 
@@ -488,12 +489,34 @@ async function fetchWeather(lat, lon) {
       w.main?.toLowerCase().includes('rain') || w.description?.toLowerCase().includes('rain')
     );
     await fetchStateFromGeo(lat, lon);
-    const tempStr = autoData.temperature !== null ? `${Math.round(autoData.temperature)}°F` : '—';
-    const humStr  = autoData.humidity    !== null ? `${autoData.humidity}%` : '—';
-    setWeatherChip(`🌡 ${tempStr} · 💧 ${humStr}${autoData.raining ? ' 🌧' : ''}`, 'ready');
+    updateWeatherChip();
   } catch (err) {
     setWeatherChip('🌡 Weather unavailable', 'error');
   }
+}
+
+async function fetchAirQuality(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}`
+    );
+    if (!res.ok) throw new Error(`Air Quality API ${res.status}`);
+    const data = await res.json();
+    autoData.aqi = data.list?.[0]?.main?.aqi ?? null;
+    updateWeatherChip();
+  } catch (err) {
+    console.error('Air quality fetch error:', err);
+  }
+}
+
+const AQI_LABELS = ['', 'Good', 'Fair', 'Moderate', 'Poor', 'Very Poor'];
+
+function updateWeatherChip() {
+  const tempStr = autoData.temperature !== null ? `${Math.round(autoData.temperature)}°F` : '—';
+  const humStr  = autoData.humidity    !== null ? `${autoData.humidity}%` : '—';
+  const rainStr = autoData.raining ? ' 🌧' : '';
+  const aqiStr  = autoData.aqi !== null ? ` · AQI ${autoData.aqi} ${AQI_LABELS[autoData.aqi]}` : '';
+  setWeatherChip(`🌡 ${tempStr} · 💧 ${humStr}${rainStr}${aqiStr}`, 'ready');
 }
 
 async function fetchStateFromGeo(lat, lon) {
@@ -545,6 +568,7 @@ function initLocation() {
       setLocationChip(`📍 ${autoData.latitude.toFixed(3)}, ${autoData.longitude.toFixed(3)}`, 'ready');
       await Promise.all([
         fetchWeather(autoData.latitude, autoData.longitude),
+        fetchAirQuality(autoData.latitude, autoData.longitude),
         fetchPollen(autoData.latitude, autoData.longitude),
       ]);
       if (autoData.city) {
@@ -583,7 +607,8 @@ form.addEventListener('submit', async (e) => {
     state:       autoData.state,
     temperature: autoData.temperature,
     humidity:    autoData.humidity,
-    raining:     autoData.raining,
+    raining:      autoData.raining,
+    aqi:          autoData.aqi,
     pollen_tree:  autoData.pollen_tree,
     pollen_grass: autoData.pollen_grass,
     pollen_weed:  autoData.pollen_weed,
@@ -659,6 +684,7 @@ function renderEntry(e) {
   if (e.city || e.state) metaParts.push(`📍 ${[e.city,e.state].filter(Boolean).join(', ')}`);
   if (e.temperature != null) metaParts.push(`${Math.round(e.temperature)}°F`);
   if (e.humidity    != null) metaParts.push(`${e.humidity}% hum`);
+  if (e.aqi         != null) metaParts.push(`AQI ${e.aqi} ${['','Good','Fair','Moderate','Poor','Very Poor'][e.aqi]}`);
   const pollenParts = [];
   if (e.pollen_tree  != null) pollenParts.push(`🌲 ${e.pollen_tree}`);
   if (e.pollen_grass != null) pollenParts.push(`🌾 ${e.pollen_grass}`);
